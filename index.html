@@ -4,8 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dragon Arena</title>
-    <!-- Telegram WebApp SDK -->
+    
+    <!-- 1. Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <!-- 2. CleanAds SDK -->
+    <script src="https://api.cleanads.ai/sdk/v1.js"></script>
+
     <style>
         :root {
             --bg-color: var(--tg-theme-bg-color, #ffffff);
@@ -25,42 +30,32 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            min-height: 100vh;
             box-sizing: border-box;
             text-align: center;
         }
 
         .dragon-icon {
-            font-size: 80px;
-            margin-bottom: 20px;
+            font-size: 70px;
+            margin-bottom: 10px;
             animation: float 3s ease-in-out infinite;
         }
 
         @keyframes float {
             0% { transform: translateY(0px); }
-            50% { transform: translateY(-15px); }
+            50% { transform: translateY(-10px); }
             100% { transform: translateY(0px); }
         }
 
-        h1 {
-            font-size: 28px;
-            margin-bottom: 10px;
-            font-weight: 800;
-            letter-spacing: 1px;
-        }
-
-        p {
-            font-size: 16px;
-            color: var(--tg-theme-hint-color, #999999);
-            margin-bottom: 30px;
-        }
+        h1 { font-size: 26px; margin-bottom: 5px; font-weight: 800; }
+        p { font-size: 14px; color: var(--tg-theme-hint-color, #999999); margin-bottom: 20px; }
 
         .stats-container {
             background-color: var(--secondary-bg);
-            padding: 15px 30px;
+            padding: 15px;
             border-radius: 12px;
-            margin-bottom: 30px;
-            width: 80%;
+            margin-bottom: 20px;
+            width: 90%;
             max-width: 300px;
         }
 
@@ -71,28 +66,40 @@
             font-weight: 600;
         }
 
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 90%;
+            max-width: 300px;
+        }
+
         button {
             background-color: var(--button-color);
             color: var(--button-text);
             border: none;
-            padding: 15px 40px;
-            font-size: 18px;
+            padding: 14px;
+            font-size: 16px;
             font-weight: bold;
             border-radius: 10px;
             cursor: pointer;
-            width: 80%;
-            max-width: 300px;
             transition: transform 0.1s;
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
 
-        button:active {
-            transform: scale(0.95);
-        }
+        button:active { transform: scale(0.95); }
+        
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+        .ad-btn { background-color: #f39c12; } /* Orange color for ads */
+        .ad-btn-secondary { background-color: #8e44ad; } /* Purple for the second ad */
+        
+        #loading {
+            display: none;
+            margin-top: 15px;
+            font-size: 14px;
+            color: #f39c12;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -113,62 +120,160 @@
         </div>
     </div>
 
-    <button id="attack-btn">⚔️ Attack Boss</button>
+    <div class="btn-group">
+        <button id="attack-btn">⚔️ Attack Boss</button>
+        
+        <!-- REWARDED AD BUTTON -->
+        <button id="rewarded-btn" class="ad-btn">🎁 Watch Ad for +50 Power</button>
+        
+        <!-- INTERSTITIAL AD BUTTON -->
+        <button id="interstitial-btn" class="ad-btn-secondary">📺 Watch Ad to Instant Kill</button>
+    </div>
+
+    <div id="loading">Loading Ad...</div>
 
     <script>
-        // 1. Initialize Telegram WebApp
+        // ==========================================
+        // 1. TELEGRAM INITIALIZATION
+        // ==========================================
         const tg = window.Telegram.WebApp;
-        tg.expand(); // Make the app take up the full height
+        tg.expand(); 
 
-        // 2. Get User Data
         const user = tg.initDataUnsafe?.user;
-        if (user) {
-            document.getElementById('username').innerText = user.first_name || user.username;
-        }
+        // Fallback for testing outside Telegram
+        const currentUser = {
+            id: user ? user.id.toString() : "test_user_123", 
+            firstName: user ? user.first_name : "Warrior"
+        };
+        
+        document.getElementById('username').innerText = currentUser.firstName;
 
-        // 3. Game Logic
+        // ==========================================
+        // 2. CLEAN ADS INITIALIZATION
+        // ==========================================
+        // Note: I renamed your variables to prevent "Identifier 'ad' has already been declared" errors.
+
+        // Interstitial 1 (For Instant Kill)
+        const interstitialAd1 = CleanAds.init({
+            placementId: "pl_cvDxWjCGVdVb",
+            userId: currentUser.id,
+            test: false, 
+        });
+
+        // Rewarded Ad (For Power)
+        const rewardedAd = CleanAds.init({
+            placementId: "pl_JyX3t7-wV2gp",
+            userId: currentUser.id,
+            test: false,
+        });
+
+        // Interstitial 2 (Backup/Alternative)
+        const interstitialAd2 = CleanAds.init({
+            placementId: "pl_jouilwd7OWTY",
+            userId: currentUser.id,
+            test: false,
+        });
+
+        // ==========================================
+        // 3. GAME LOGIC
+        // ==========================================
         let playerPower = 0;
         let bossHp = 100;
+        
         const attackBtn = document.getElementById('attack-btn');
+        const rewardedBtn = document.getElementById('rewarded-btn');
+        const interstitialBtn = document.getElementById('interstitial-btn');
         const powerEl = document.getElementById('power-level');
         const bossHpEl = document.getElementById('boss-hp');
+        const loadingEl = document.getElementById('loading');
 
-        attackBtn.addEventListener('click', () => {
-            // Trigger Haptic Feedback (Vibration) if supported
-            if (tg.HapticFeedback) {
-                tg.HapticFeedback.impactOccurred('medium');
+        function updateUI() {
+            powerEl.innerText = playerPower;
+            if (bossHp > 0) {
+                bossHpEl.innerText = bossHp;
             }
+        }
 
-            // Calculate damage (Random between 5 and 15)
-            const damage = Math.floor(Math.random() * 11) + 5;
+        function resetBoss() {
+            bossHp = 100;
+            bossHpEl.innerText = bossHp;
+            attackBtn.disabled = false;
+            attackBtn.innerText = "⚔️ Attack Boss";
+        }
+
+        // --- Normal Attack ---
+        attackBtn.addEventListener('click', () => {
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
             
+            const damage = Math.floor(Math.random() * 11) + 5;
             playerPower += damage;
             bossHp -= damage;
 
-            // Update UI
-            powerEl.innerText = playerPower;
-
             if (bossHp <= 0) {
                 bossHpEl.innerText = "DEFEATED!";
-                attackBtn.innerText = "Boss Respawning...";
                 attackBtn.disabled = true;
+                attackBtn.innerText = "Respawning...";
+                setTimeout(resetBoss, 3000);
+            }
+            updateUI();
+        });
+
+        // --- REWARDED AD LOGIC ---
+        rewardedBtn.addEventListener('click', async () => {
+            rewardedBtn.disabled = true;
+            loadingEl.style.display = 'block';
+            loadingEl.innerText = "Loading Reward Ad...";
+
+            try {
+                await rewardedAd.show(); // Triggers the ad
                 
-                // Show Telegram Alert
-                tg.showAlert("You defeated the Dragon! You are victorious.");
+                // If we get here, the user watched the full ad
+                if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
                 
-                // Reset after 3 seconds
-                setTimeout(() => {
-                    bossHp = 100;
-                    bossHpEl.innerText = bossHp;
-                    attackBtn.innerText = "⚔️ Attack Boss";
-                    attackBtn.disabled = false;
-                }, 3000);
-            } else {
-                bossHpEl.innerText = bossHp;
+                // Grant Reward
+                playerPower += 50;
+                updateUI();
+                tg.showAlert("Reward Granted: +50 Power!");
+                
+            } catch (e) {
+                console.log("No ad:", e.reason);
+                tg.showAlert("Ad could not be shown: " + e.reason);
+            } finally {
+                rewardedBtn.disabled = false;
+                loadingEl.style.display = 'none';
             }
         });
 
-        // 4. Notify Telegram that the app is ready
+        // --- INTERSTITIAL AD LOGIC ---
+        interstitialBtn.addEventListener('click', async () => {
+            interstitialBtn.disabled = true;
+            loadingEl.style.display = 'block';
+            loadingEl.innerText = "Loading Interstitial Ad...";
+
+            try {
+                await interstitialAd1.show(); // Triggers the ad
+                
+                // If ad finishes, kill the boss instantly
+                if (bossHp > 0) {
+                    bossHp = 0;
+                    bossHpEl.innerText = "INSTANT KILLED!";
+                    attackBtn.disabled = true;
+                    attackBtn.innerText = "Respawning...";
+                    setTimeout(resetBoss, 3000);
+                    
+                    if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('warning');
+                }
+                
+            } catch (e) {
+                console.log("No ad:", e.reason);
+                tg.showAlert("Ad could not be shown: " + e.reason);
+            } finally {
+                interstitialBtn.disabled = false;
+                loadingEl.style.display = 'none';
+            }
+        });
+
+        // Tell Telegram the app is ready
         tg.ready();
     </script>
 </body>
