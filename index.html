@@ -1,1 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dragon Arena</title>
+    <!-- Telegram WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --bg-color: var(--tg-theme-bg-color, #ffffff);
+            --text-color: var(--tg-theme-text-color, #000000);
+            --button-color: var(--tg-theme-button-color, #2481cc);
+            --button-text: var(--tg-theme-button-text-color, #ffffff);
+            --secondary-bg: var(--tg-theme-secondary-bg-color, #f1f1f1);
+        }
 
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        .dragon-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-15px); }
+            100% { transform: translateY(0px); }
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            font-weight: 800;
+            letter-spacing: 1px;
+        }
+
+        p {
+            font-size: 16px;
+            color: var(--tg-theme-hint-color, #999999);
+            margin-bottom: 30px;
+        }
+
+        .stats-container {
+            background-color: var(--secondary-bg);
+            padding: 15px 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            width: 80%;
+            max-width: 300px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            font-weight: 600;
+        }
+
+        button {
+            background-color: var(--button-color);
+            color: var(--button-text);
+            border: none;
+            padding: 15px 40px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            width: 80%;
+            max-width: 300px;
+            transition: transform 0.1s;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="dragon-icon">🐉</div>
+    <h1>Dragon Arena</h1>
+    <p>Welcome, <span id="username">Warrior</span>!</p>
+
+    <div class="stats-container">
+        <div class="stat-row">
+            <span>Your Power:</span>
+            <span id="power-level">0</span>
+        </div>
+        <div class="stat-row">
+            <span>Boss HP:</span>
+            <span id="boss-hp">100</span>
+        </div>
+    </div>
+
+    <button id="attack-btn">⚔️ Attack Boss</button>
+
+    <script>
+        // 1. Initialize Telegram WebApp
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // Make the app take up the full height
+
+        // 2. Get User Data
+        const user = tg.initDataUnsafe?.user;
+        if (user) {
+            document.getElementById('username').innerText = user.first_name || user.username;
+        }
+
+        // 3. Game Logic
+        let playerPower = 0;
+        let bossHp = 100;
+        const attackBtn = document.getElementById('attack-btn');
+        const powerEl = document.getElementById('power-level');
+        const bossHpEl = document.getElementById('boss-hp');
+
+        attackBtn.addEventListener('click', () => {
+            // Trigger Haptic Feedback (Vibration) if supported
+            if (tg.HapticFeedback) {
+                tg.HapticFeedback.impactOccurred('medium');
+            }
+
+            // Calculate damage (Random between 5 and 15)
+            const damage = Math.floor(Math.random() * 11) + 5;
+            
+            playerPower += damage;
+            bossHp -= damage;
+
+            // Update UI
+            powerEl.innerText = playerPower;
+
+            if (bossHp <= 0) {
+                bossHpEl.innerText = "DEFEATED!";
+                attackBtn.innerText = "Boss Respawning...";
+                attackBtn.disabled = true;
+                
+                // Show Telegram Alert
+                tg.showAlert("You defeated the Dragon! You are victorious.");
+                
+                // Reset after 3 seconds
+                setTimeout(() => {
+                    bossHp = 100;
+                    bossHpEl.innerText = bossHp;
+                    attackBtn.innerText = "⚔️ Attack Boss";
+                    attackBtn.disabled = false;
+                }, 3000);
+            } else {
+                bossHpEl.innerText = bossHp;
+            }
+        });
+
+        // 4. Notify Telegram that the app is ready
+        tg.ready();
+    </script>
+</body>
+</html>
